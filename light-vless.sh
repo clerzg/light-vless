@@ -22,14 +22,14 @@ case "$ARCH" in
     *) XRAY_ARCH="64" ;;
 esac
 
-DOWNLOAD_URL="${MY_RELEASE_URL}/xray-linux-${XRAY_ARCH}"
+DOWNLOAD_URL="${MY_RELEASE_URL}/xray-linux-${XRAY_ARCH}.tar.gz"
 mkdir -p /usr/local/bin
-wget -O ${XRAY_BIN} --no-cache "${DOWNLOAD_URL}"
+wget -O ${XRAY_BIN} "${DOWNLOAD_URL}" | tar -xz
 if [ $? -eq 0 ] && [ -s ${XRAY_BIN} ]; then
     chmod +x ${XRAY_BIN}
     echo "下载成功: ${XRAY_ARCH}"
 else
-    echo "错误: 无法从你的仓库下载文件"
+    echo "错误: 无法从下载xray文件"
     exit 1
 fi
 
