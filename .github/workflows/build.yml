@@ -1,10 +1,10 @@
 name: Build Micro Sing-Box
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # 支持手动点击按钮触发
   push:
     tags:
-      - 'v*'
+      - 'v*' # 推送 tag 时触发
 
 jobs:
   build:
@@ -19,11 +19,32 @@ jobs:
             suffix: arm64-v8a
 
     steps:
+      # 🎯 核心黑科技步骤：如果是手动触发，自动去官方仓库抓取最新的 Release Tag
+      - name: Get Latest sing-box Release
+        id: sing_box_latest
+        if: github.ref_type != 'tag'
+        uses: pozetroninc/github-action-get-latest-release@v0.8.0
+        with:
+          repository: SagerNet/sing-box
+          excludes: prerelease, draft
+
+      # 设置最终要编译的版本变量
+      - name: Set Target Version
+        id: version
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "target_ref=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+            echo "release_tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "target_ref=${{ steps.sing_box_latest.outputs.release }}" >> $GITHUB_OUTPUT
+            echo "release_tag=${{ steps.sing_box_latest.outputs.release }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          repository: 'SagerNet/sing-box' # 拉取 sing-box 官方源码
-          ref: ${{ github.ref_type == 'tag' && github.ref_name || 'main-next' }}
+          repository: 'SagerNet/sing-box'
+          ref: ${{ steps.version.outputs.target_ref }} # 动态切换成目标最新版本
           fetch-depth: 1
 
       - name: Setup Go
@@ -32,13 +53,7 @@ jobs:
           go-version: 'stable'
 
       - name: Build sing-box (Micro Mode)
-        # 🎯 核心绝招：-tags 只保留 vless 和 websocket，连 tls 都不带！
-        run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.goarch }} go build -v -trimpath \
-            -tags "with_vless with_websocket" \
-            -ldflags="-s -w -buildid=" \
-            -o sing-box-linux-${{ matrix.suffix }} \
-            ./cmd/sing-box
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.goarch }} go build -v -trimpath -tags "with_vless with_websocket" -ldflags="-s -w -buildid=" -o sing-box-linux-${{ matrix.suffix }} ./cmd/sing-box
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
@@ -50,10 +65,28 @@ jobs:
     name: Create Release
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    # 无论是推 Tag 还是网页手动点，这次都让它 100% 成功创建 Release
     permissions:
       contents: write
     steps:
+      # 再次获取版本号以便命名 Release 页面
+      - name: Get Latest sing-box Release for Release Job
+        id: sing_box_latest_rel
+        if: github.ref_type != 'tag'
+        uses: pozetroninc/github-action-get-latest-release@v0.8.0
+        with:
+          repository: SagerNet/sing-box
+          excludes: prerelease, draft
+
+      - name: Set Release Tag
+        id: rel_version
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "release_tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "release_tag=${{ steps.sing_box_latest_rel.outputs.release }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
         with:
@@ -62,8 +95,8 @@ jobs:
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: "Sing-Box Micro ${{ github.ref_name }}"
+          tag_name: ${{ steps.rel_version.outputs.release_tag }}
+          name: "Sing-Box Micro ${{ steps.rel_version.outputs.release_tag }}"
           draft: false
           prerelease: false
           files: |
