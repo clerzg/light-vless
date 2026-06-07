@@ -14,39 +14,42 @@ jobs:
         include:
           - goarch: amd64
             file_part: "64"
-            target_name: "xray-linux-64"
+            pkg_name: "xray-linux-64"
           - goarch: arm64-v8a
             file_part: "arm64-v8a"
-            target_name: "xray-linux-arm64-v8a"
+            pkg_name: "xray-linux-arm64-v8a"
 
     steps:
-      # 1. 核心魔术：直接抓取官方最新版本的真实 Tag 名字并存入变量
+      # 1. 抓取真实版本号
       - name: Get Real Latest Version Tag
         id: get_version
         run: |
           REAL_TAG=$(curl -sI https://github.com/XTLS/Xray-core/releases/latest | grep -i "location:" | awk -F'/' '{print $NF}' | tr -d '\r\n')
-          echo "检测到官方最新版本号为: $REAL_TAG"
           echo "version=$REAL_TAG" >> $GITHUB_OUTPUT
 
-      # 2. 动态下载对应版本的 zip 包
+      # 2. 下载官方对应的 zip 包
       - name: Download Official Zip
         run: |
           URL="https://github.com/XTLS/Xray-core/releases/download/${{ steps.get_version.outputs.version }}/Xray-linux-${{ matrix.file_part }}.zip"
           curl -L -o xray.zip "$URL"
 
-      # 3. 解压并重命名文件
+      # 3. 仅仅解压出名为 xray 的核心二进制文件（不进行任何重命名）
       - name: Extract Binary
         run: |
           unzip xray.zip xray
-          mv xray ${{ matrix.target_name }}
-          chmod +x ${{ matrix.target_name }}
+          chmod +x xray
 
-      # 4. 暂存产物
+      # 4. 用各自架构的包名封装这个 xray 文件
+      - name: Pack to Gzip
+        run: |
+          tar -czvf ${{ matrix.pkg_name }}.tar.gz xray
+
+      # 5. 暂存压缩包
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.target_name }}
-          path: ${{ matrix.target_name }}
+          name: ${{ matrix.pkg_name }}-archive
+          path: ${{ matrix.pkg_name }}.tar.gz
 
   release:
     name: Create Release
@@ -60,17 +63,17 @@ jobs:
         with:
           path: ./artifacts
 
-      # 5. 发布到你自己的 Release 页面，Tag 自动变为真实的官方版本号
+      # 6. 发布压缩后的 .tar.gz 文件到自己的 Release
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.deploy.outputs.xray_version }}
           name: "Xray Official ${{ needs.deploy.outputs.xray_version }}"
-          body: "基于官方最新版本 ${{ needs.deploy.outputs.xray_version }} 自动提取并重命名的解压单文件。专为 64M 小内存优化。"
+          body: "官方最新版本 ${{ needs.deploy.outputs.xray_version }}。完美适配 64M 小内存 Alpine 容器。下载体积约 10MB，解压后单文件名为 xray。"
           draft: false
           prerelease: false
           files: |
-            ./artifacts/xray-linux-64/xray-linux-64
-            ./artifacts/xray-linux-arm64-v8a/xray-linux-arm64-v8a
+            ./artifacts/xray-linux-64-archive/xray-linux-64.tar.gz
+            ./artifacts/xray-linux-arm64-v8a-archive/xray-linux-arm64-v8a.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
