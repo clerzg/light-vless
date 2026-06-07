@@ -24,6 +24,7 @@ esac
 
 DOWNLOAD_URL="${MY_RELEASE_URL}/xray-linux-${XRAY_ARCH}.tar.gz"
 mkdir -p /usr/local/bin
+cd/usr/local/bin
 wget -O- "${DOWNLOAD_URL}" | tar -xz
 if [ $? -eq 0 ] && [ -s ${XRAY_BIN} ]; then
     chmod +x ${XRAY_BIN}
