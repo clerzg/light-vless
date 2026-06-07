@@ -50,7 +50,7 @@ jobs:
             -o xray-linux-${{ matrix.suffix }} \
             ./main
 
-      # 6. 使用 LZMA 算法进行极限物理压榨，砸碎 30MB 枷锁
+      # 6. 使用 LZMA 算法进行极限物理压榨
       - name: UPX Ultra Compress
         run: upx --best --lzma xray-linux-${{ matrix.suffix }}
 
@@ -66,8 +66,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     permissions:
-      contents: write # 确保拥有发布 Release 的权限
+      contents: write
     steps:
+      # 再次获取版本号
       - name: Get Latest Tag Again
         id: xray_latest_rel
         uses: pozetroninc/github-action-get-latest-release@v0.8.0
@@ -80,11 +81,12 @@ jobs:
         with:
           path: ./artifacts
 
+      # 🎯 修正点：在这里补全了 steps. 前缀
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ xray_latest_rel.outputs.release }}
-          name: "Xray Slim ${{ xray_latest_rel.outputs.release }}"
+          tag_name: ${{ steps.xray_latest_rel.outputs.release }}
+          name: "Xray Slim ${{ steps.xray_latest_rel.outputs.release }}"
           draft: false
           prerelease: false
           files: |
