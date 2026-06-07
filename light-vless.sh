@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # ====================================================
-# 配置信息定义（请将下面的下载前缀换成你自己的 GitHub 仓库 Release 地址）
+# 配置信息定义
 # ====================================================
 XRAY_BIN="/usr/local/bin/xray"
 CONFIG_PATH="/etc/xray"
@@ -9,11 +9,11 @@ CONFIG_FILE="${CONFIG_PATH}/config.json"
 INIT_FILE="/etc/init.d/xray"
 
 # 🛠️ 填入你通过 GitHub Actions 编译出来的文件下载前缀
-MY_RELEASE_URL="https://github.com/你的用户名/你的仓库名/releases/latest/download"
+MY_RELEASE_URL="https://github.com/clerzg/light-vless/releases/latest/download"
 
 echo "==== 1. 获取 Cloudflare trace 数据 ===="
 # 直接使用系统自带的 wget，无任何安装开销
-INFO=$(wget -qO- --no-cache "https://www.cloudflare.com/cdn-cgi/trace")
+INFO=$(wget -qO-  "https://www.cloudflare.com/cdn-cgi/trace")
 IP=$(echo "${INFO}" | awk -F= '/^ip=/ {print $2}')
 LOC=$(echo "${INFO}" | awk -F= '/^loc=/ {print $2}')
 
@@ -73,7 +73,7 @@ pidfile="/run/${RC_SVCNAME}.pid"
 command_background="yes"
 
 # 内存守护：强制约束 Go 运行时内存
-export GOGC=30
+export GOGC=20
 export GOMEMLIMIT=32MiB
 
 # 崩溃自动重启守护
