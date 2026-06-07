@@ -1,10 +1,7 @@
-name: Build Micro Sing-Box
+name: Build Extreme Mini Sing-Box
 
 on:
-  workflow_dispatch:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch: # 支持网页手动点击运行
 
 jobs:
   build:
@@ -14,48 +11,51 @@ jobs:
       matrix:
         include:
           - goarch: amd64
-            suffix: 64
+            suffix: "64"
           - goarch: arm64
-            suffix: arm64-v8a
+            suffix: "arm64-v8a"
 
     steps:
+      # 1. 自动去官方仓库抓取最新的稳定 Release Tag 名字
       - name: Get Latest sing-box Release
         id: sing_box_latest
-        if: github.ref_type != 'tag'
         uses: pozetroninc/github-action-get-latest-release@v0.8.0
         with:
           repository: SagerNet/sing-box
           excludes: prerelease, draft
 
-      - name: Set Target Version
-        id: version
-        run: |
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            echo "target_ref=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-            echo "release_tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-          else
-            echo "target_ref=${{ steps.sing_box_latest.outputs.release }}" >> $GITHUB_OUTPUT
-            echo "release_tag=${{ steps.sing_box_latest.outputs.release }}" >> $GITHUB_OUTPUT
-          fi
-
+      # 2. 克隆官方对应最新版本的源码
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           repository: 'SagerNet/sing-box'
-          ref: ${{ steps.version.outputs.target_ref }}
+          ref: ${{ steps.sing_box_latest.outputs.release }}
           fetch-depth: 1
 
+      # 3. 锁死在最轻量的 Go 1.22 版本
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: 'stable'
+          go-version: '1.22'
 
-      - name: Build sing-box and Compress with UPX
+      # 4. 安装 Linux 终极压缩工具 UPX
+      - name: Install UPX
+        run: sudo apt-get update && sudo apt-get install -y upx-ucl
+
+      # 5. 使用 none 深度洗白标签进行极致编译，并修改对应架构的文件名
+      - name: Build with Extreme Slim Tags
         run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.goarch }} go build -v -trimpath -tags "with_vless with_websocket" -ldflags="-s -w -buildid=" -o sing-box-linux-${{ matrix.suffix }} ./cmd/sing-box
-          sudo apt-get update && sudo apt-get install -y upx-ucl
-          upx --best sing-box-linux-${{ matrix.suffix }}
+          CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.goarch }} go build -v -trimpath \
+            -tags "none in_vless out_vless in_direct out_direct out_block mechanism_transport_http mechanism_transport_websocket" \
+            -ldflags="-s -w -buildid=" \
+            -o sing-box-linux-${{ matrix.suffix }} \
+            ./cmd/sing-box
 
+      # 6. 使用 LZMA 算法进行极限物理压榨，冲向 6.5MB 终极体型
+      - name: UPX Ultra Compress
+        run: upx --best --lzma sing-box-linux-${{ matrix.suffix }}
+
+      # 7. 临时暂存产物
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -67,24 +67,14 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write # 确保拥有发布 Release 的权限
     steps:
-      - name: Get Latest sing-box Release for Release Job
+      - name: Get Latest Tag Again
         id: sing_box_latest_rel
-        if: github.ref_type != 'tag'
         uses: pozetroninc/github-action-get-latest-release@v0.8.0
         with:
           repository: SagerNet/sing-box
           excludes: prerelease, draft
-
-      - name: Set Release Tag
-        id: rel_version
-        run: |
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            echo "release_tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-          else
-            echo "release_tag=${{ steps.sing_box_latest_rel.outputs.release }}" >> $GITHUB_OUTPUT
-          fi
 
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
@@ -94,8 +84,8 @@ jobs:
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.rel_version.outputs.release_tag }}
-          name: "Sing-Box Micro ${{ steps.rel_version.outputs.release_tag }}"
+          tag_name: ${{ steps.sing_box_latest_rel.outputs.release }}
+          name: "Sing-Box Micro ${{ steps.sing_box_latest_rel.outputs.release }}"
           draft: false
           prerelease: false
           files: |
