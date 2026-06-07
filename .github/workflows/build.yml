@@ -1,4 +1,4 @@
-name: Build Slim Xray
+name: Build Micro Sing-Box
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    name: Build Xray for ${{ matrix.goarch }}
+    name: Build sing-box for ${{ matrix.goarch }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -22,8 +22,8 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          repository: 'XTLS/Xray-core'
-          ref: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+          repository: 'SagerNet/sing-box' # 拉取 sing-box 官方源码
+          ref: ${{ github.ref_type == 'tag' && github.ref_name || 'main-next' }}
           fetch-depth: 1
 
       - name: Setup Go
@@ -31,14 +31,20 @@ jobs:
         with:
           go-version: 'stable'
 
-      - name: Build Xray (Slim Mode)
-        run: CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.goarch }} go build -v -trimpath -ldflags="-s -w -buildid=" -o xray-linux-${{ matrix.suffix }} ./main
+      - name: Build sing-box (Micro Mode)
+        # 🎯 核心绝招：-tags 只保留 vless 和 websocket，连 tls 都不带！
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.goarch }} go build -v -trimpath \
+            -tags "with_vless with_websocket" \
+            -ldflags="-s -w -buildid=" \
+            -o sing-box-linux-${{ matrix.suffix }} \
+            ./cmd/sing-box
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: xray-linux-${{ matrix.suffix }}
-          path: xray-linux-${{ matrix.suffix }}
+          name: sing-box-linux-${{ matrix.suffix }}
+          path: sing-box-linux-${{ matrix.suffix }}
 
   release:
     name: Create Release
@@ -57,11 +63,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: "Xray Slim ${{ github.ref_name }}"
+          name: "Sing-Box Micro ${{ github.ref_name }}"
           draft: false
           prerelease: false
           files: |
-            ./artifacts/xray-linux-64/xray-linux-64
-            ./artifacts/xray-linux-arm64-v8a/xray-linux-arm64-v8a
+            ./artifacts/sing-box-linux-64/sing-box-linux-64
+            ./artifacts/sing-box-linux-arm64-v8a/sing-box-linux-arm64-v8a
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
