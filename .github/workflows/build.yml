@@ -1,0 +1,75 @@
+name: Build Slim Xray
+
+on:
+  workflow_dispatch: # 支持手动点击按钮触发编译
+  push:
+    tags:
+      - 'v*' # 当你推一个以 v 开头的标签（如 v1.0.0）时自动触发编译并发布
+
+jobs:
+  build:
+    name: Build Xray for ${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          # 配置 AMD64 (x86_64) 架构
+          - goarch: amd64
+            suffix: 64
+          # 配置 ARM64 架构
+          - goarch: arm64
+            suffix: arm64-v8a
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          repository: 'XTLS/Xray-core' # 直接拉取 Xray 官方最新的源码
+          fetch-depth: 1
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable' # 使用最新的稳定版 Go 环境
+
+      - name: Build Xray (Slim Mode)
+        run: |
+          # 核心脱脂编译命令
+          # 1. CGO_ENABLED=0 实现纯静态编译，完美兼容 Alpine
+          # 2. -trimpath 隐藏编译路径
+          # 3. -ldflags="-s -w" 剔除调试信息和符号表，体积直接砍掉 40%
+          env CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.goarch }} go build \
+            -v \
+            -trimpath \
+            -ldflags="-s -w -buildid=" \
+            -o xray-linux-${{ matrix.suffix }} \
+            ./main
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xray-linux-${{ matrix.suffix }}
+          path: xray-linux-${{ matrix.suffix }}
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') # 只有推 tag 时才会打包成 Release
+    steps:
+      - name: Download All Artifacts
+        uses: actions/downloads-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Display structure of downloaded files
+        run: ls -R ./artifacts
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ./artifacts/xray-linux-64/xray-linux-64
+            ./artifacts/xray-linux-arm64-v8a/xray-linux-arm64-v8a
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
