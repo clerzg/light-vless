@@ -1,9 +1,10 @@
 name: Build Slim Xray
 
 on:
+  workflow_dispatch:
   push:
     tags:
-      - 'v*' # 当你推一个以 v 开头的标签（如 v24.12.18）时自动触发
+      - 'v*'
 
 jobs:
   build:
@@ -22,7 +23,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: 'XTLS/Xray-core'
-          # 核心改动：如果是通过 tag 触发，就直接拉取官方同名的 tag 源码；否则默认拉取最新分支
           ref: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
           fetch-depth: 1
 
@@ -32,13 +32,7 @@ jobs:
           go-version: 'stable'
 
       - name: Build Xray (Slim Mode)
-        run: |
-          env CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.goarch }} go build \
-            -v \
-            -trimpath \
-            -ldflags="-s -w -buildid=" \
-            -o xray-linux-${{ matrix.suffix }} \
-            ./main
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.goarch }} go build -v -trimpath -ldflags="-s -w -buildid=" -o xray-linux-${{ matrix.suffix }} ./main
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
@@ -50,17 +44,18 @@ jobs:
     name: Create Release
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') # 只有推 tag 时才会打包成 Release
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
     steps:
       - name: Download All Artifacts
-        uses: actions/download-artifact@v4 # 修正了原先多写了 s 的 Bug
+        uses: actions/download-artifact@v4
         with:
           path: ./artifacts
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          # 自动使用你推的 Tag 名字（比如 v24.12.18）来命名 Release
           tag_name: ${{ github.ref_name }}
           name: "Xray Slim ${{ github.ref_name }}"
           draft: false
