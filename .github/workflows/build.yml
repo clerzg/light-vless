@@ -1,7 +1,6 @@
 name: Build Slim Xray
 
 on:
-  workflow_dispatch: # 依然保留手动触发，默认拉取最新代码
   push:
     tags:
       - 'v*' # 当你推一个以 v 开头的标签（如 v24.12.18）时自动触发
