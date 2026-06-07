@@ -1,7 +1,7 @@
 name: Build Extreme Mini Xray
 
 on:
-  workflow_dispatch: # 支持手动点击运行
+  workflow_dispatch: # 支持网页手动点击运行
 
 jobs:
   build:
@@ -16,7 +16,7 @@ jobs:
             suffix: "arm64-v8a"
 
     steps:
-      # 1. 自动去官方仓库抓取最新稳定版 Tag
+      # 1. 获取最新 Tag
       - name: Get Latest Xray Release
         id: xray_latest
         uses: pozetroninc/github-action-get-latest-release@v0.8.0
@@ -24,7 +24,7 @@ jobs:
           repository: XTLS/Xray-core
           excludes: prerelease, draft
 
-      # 2. 克隆最新源码
+      # 2. 克隆源码
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
@@ -32,16 +32,17 @@ jobs:
           ref: ${{ steps.xray_latest.outputs.release }}
           fetch-depth: 1
 
-      # 3. 设置 Go 环境
+      # 3. 设置 Go 1.22
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
 
-      # 4. 纯净编译 (关键：s/w 剥离，不使用 UPX)
-      - name: Build Xray (Raw Slim Mode)
+      # 4. 割肉编译 (开启 confonly 标签，暂不使用 UPX)
+      - name: Build Xray (ConfOnly Mode)
         run: |
           CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.goarch }} go build -v -trimpath \
+            -tags "confonly" \
             -ldflags="-s -w -buildid=" \
             -o xray-linux-${{ matrix.suffix }} \
             ./main
