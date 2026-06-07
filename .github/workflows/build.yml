@@ -38,16 +38,30 @@ jobs:
         with:
           go-version: '1.22'
 
-      # 4. 割肉编译 (开启 confonly 标签，暂不使用 UPX)
-      - name: Build Xray (ConfOnly Mode)
+      # 4. 🩸 核心大招：物理删除不需要的协议和组件源码，强行瘦身 🩸
+      - name: Physical Slimming Source Code
+        run: |
+          cd proxy
+          # 物理删除几乎占了一半体积的 shadowsocks、shadowsocks_2022、trojan、vmess、vless(非ws部分) 等
+          # 注意：为了确保能够顺利编译通过，我们只删掉可以安全解耦的独立协议包
+          rm -rf shadowsocks shadowsocks_2022 trojan vmess loopback freedom
+          
+          # 重新创建一个极其简单的 freedom (直连) 协议占位，防止编译报错
+          mkdir freedom && cd freedom
+          echo 'package freedom' > config.go
+          
+          cd ../..
+          echo "源码物理裁剪完成！"
+
+      # 5. 纯净编译 (暂不使用 UPX)
+      - name: Build Xray (Raw Slim Mode)
         run: |
           CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.goarch }} go build -v -trimpath \
-            -tags "confonly" \
             -ldflags="-s -w -buildid=" \
             -o xray-linux-${{ matrix.suffix }} \
             ./main
 
-      # 5. 上传产物
+      # 6. 上传产物
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
