@@ -1,7 +1,7 @@
 name: Build Extreme Mini Xray
 
 on:
-  workflow_dispatch: # 支持网页手动点击运行
+  workflow_dispatch: # 支持手动点击运行
 
 jobs:
   build:
@@ -16,7 +16,7 @@ jobs:
             suffix: "arm64-v8a"
 
     steps:
-      # 1. 自动去 Xray 官方仓库抓取最新的稳定 Release Tag 名字
+      # 1. 自动去官方仓库抓取最新稳定版 Tag
       - name: Get Latest Xray Release
         id: xray_latest
         uses: pozetroninc/github-action-get-latest-release@v0.8.0
@@ -24,7 +24,7 @@ jobs:
           repository: XTLS/Xray-core
           excludes: prerelease, draft
 
-      # 2. 克隆官方对应最新版本的源码
+      # 2. 克隆最新源码
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
@@ -32,29 +32,21 @@ jobs:
           ref: ${{ steps.xray_latest.outputs.release }}
           fetch-depth: 1
 
-      # 3. 锁死在轻量且高效的 Go 1.22 版本
+      # 3. 设置 Go 环境
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
 
-      # 4. 安装 Linux 终极压缩工具 UPX
-      - name: Install UPX
-        run: sudo apt-get update && sudo apt-get install -y upx-ucl
-
-      # 5. 编译 Xray（剔除符号表，修正文件名对应系统和架构）
-      - name: Build Xray (Slim Mode)
+      # 4. 纯净编译 (关键：s/w 剥离，不使用 UPX)
+      - name: Build Xray (Raw Slim Mode)
         run: |
           CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.goarch }} go build -v -trimpath \
             -ldflags="-s -w -buildid=" \
             -o xray-linux-${{ matrix.suffix }} \
             ./main
 
-      # 6. 使用 LZMA 算法进行极限物理压榨
-      - name: UPX Ultra Compress
-        run: upx --best --lzma xray-linux-${{ matrix.suffix }}
-
-      # 7. 临时暂存产物
+      # 5. 上传产物
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -68,7 +60,6 @@ jobs:
     permissions:
       contents: write
     steps:
-      # 再次获取版本号
       - name: Get Latest Tag Again
         id: xray_latest_rel
         uses: pozetroninc/github-action-get-latest-release@v0.8.0
@@ -81,7 +72,6 @@ jobs:
         with:
           path: ./artifacts
 
-      # 🎯 修正点：在这里补全了 steps. 前缀
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
